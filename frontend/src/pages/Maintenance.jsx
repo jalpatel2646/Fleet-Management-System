@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api/config';
 import {
     Wrench, Plus, Trash2, X, Calendar, DollarSign, AlertTriangle,
     CheckCircle, Clock, TrendingUp, Activity, Shield, Zap,
@@ -229,7 +229,7 @@ const Maintenance = () => {
             await api.post('/maintenance', { ...form, cost: Number(form.cost) });
             setShowModal(false);
             setForm({ vehicle: '', serviceType: '', description: '', date: '', cost: '', status: 'Completed' });
-            loadData();
+            fetchVehiclesAndRecords();
             toast('Service record logged successfully', 'success');
         } catch (err) { console.error(err); toast('Failed to log record', 'error'); }
     };
@@ -241,9 +241,9 @@ const Maintenance = () => {
         });
         if (!ok) return;
         try {
-            await axios.delete(`http://localhost:5000/api/maintenance/${id}`, { headers });
+            await api.delete(`/maintenance/${id}`);
             toast('Record deleted', 'success');
-            loadData();
+            fetchVehiclesAndRecords();
         } catch (e) { toast(e.response?.data?.error || 'Failed to delete', 'error'); }
     };
 

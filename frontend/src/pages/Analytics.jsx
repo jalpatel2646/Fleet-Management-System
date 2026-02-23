@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/config';
 import {
     LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
     CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie
@@ -10,6 +10,8 @@ import {
     Filter, Download, RefreshCw, Zap, Shield, Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ConfirmContext';
 import { AnimatedCard, AnimatedNumber, StaggerContainer, StaggerItem, AnimatedButton } from '../components/AnimatedComponents';
 
 const COLORS = {
@@ -42,74 +44,74 @@ const Analytics = () => {
     const { token } = useAuth();
     const toast = useToast();
 
+    const loadAnalytics = async () => {
+        setLoading(true);
+        try {
+            const [tripsRes, expensesRes, vehiclesRes] = await Promise.all([
+                api.get('/trips'),
+                api.get('/expenses'),
+                api.get('/vehicles')
+            ]);
+
+            const trips = tripsRes.data;
+            const expenses = expensesRes.data;
+            const vehicles = vehiclesRes.data;
+
+            const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+            const fuelExpenses = expenses.filter(e => e.type === 'Fuel').reduce((s, e) => s + e.amount, 0);
+            const maintExpenses = expenses.filter(e => e.type === 'Maintenance').reduce((s, e) => s + e.amount, 0);
+
+            // Mocking some revenue for logic (In real app, fetch from backend)
+            const mockRevenue = totalExpenses * 1.45;
+
+            setStats({
+                totalTrips: trips.length,
+                totalExpenses,
+                activeVehicles: vehicles.filter(v => v.status === 'Available' || v.status === 'On Trip').length,
+                avgEfficiency: 94.2,
+                revenue: mockRevenue,
+                costs: totalExpenses
+            });
+
+            setData({
+                tripsByDay: [
+                    { name: 'Mon', trips: 14 }, { name: 'Tue', trips: 18 }, { name: 'Wed', trips: 15 },
+                    { name: 'Thu', trips: 22 }, { name: 'Fri', trips: 28 }, { name: 'Sat', trips: 12 }, { name: 'Sun', trips: 7 }
+                ],
+                expensesByType: [
+                    { name: 'Fuel', value: fuelExpenses || 4500, color: COLORS.warning },
+                    { name: 'Maintenance', value: maintExpenses || 2800, color: COLORS.danger },
+                    { name: 'Insurance', value: 1200, color: COLORS.primary },
+                    { name: 'Service', value: 900, color: COLORS.info }
+                ],
+                fleetUtilization: [
+                    { name: 'Week 1', rate: 75 }, { name: 'Week 2', rate: 82 }, { name: 'Week 3', rate: 88 }, { name: 'Week 4', rate: 91 }
+                ],
+                revenueVsCost: [
+                    { name: 'Jan', cost: 4200, revenue: 5800 },
+                    { name: 'Feb', cost: 3800, revenue: 6200 },
+                    { name: 'Mar', cost: 4500, revenue: 7100 },
+                    { name: 'Apr', cost: 4100, revenue: 6900 },
+                    { name: 'May', cost: 5200, revenue: 8400 },
+                    { name: 'Jun', cost: 4800, revenue: 8100 }
+                ],
+                driverPerformance: [
+                    { name: 'Safety', value: 92 },
+                    { name: 'Punctuality', value: 88 },
+                    { name: 'Efficiency', value: 85 },
+                    { name: 'Fuel Economy', value: 79 },
+                    { name: 'Maintenance', value: 94 }
+                ]
+            });
+        } catch (e) {
+            console.error('Analytics load error:', e);
+            toast("Failed to load analytics data", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const loadAnalytics = async () => {
-            setLoading(true);
-            try {
-                const [tripsRes, expensesRes, vehiclesRes] = await Promise.all([
-                    api.get('/trips'),
-                    api.get('/expenses'),
-                    api.get('/vehicles')
-                ]);
-
-                const trips = tripsRes.data;
-                const expenses = expensesRes.data;
-                const vehicles = vehiclesRes.data;
-
-                const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
-                const fuelExpenses = expenses.filter(e => e.type === 'Fuel').reduce((s, e) => s + e.amount, 0);
-                const maintExpenses = expenses.filter(e => e.type === 'Maintenance').reduce((s, e) => s + e.amount, 0);
-
-                // Mocking some revenue for logic (In real app, fetch from backend)
-                const mockRevenue = totalExpenses * 1.45;
-
-                setStats({
-                    totalTrips: trips.length,
-                    totalExpenses,
-                    activeVehicles: vehicles.filter(v => v.status === 'Available' || v.status === 'On Trip').length,
-                    avgEfficiency: 94.2,
-                    revenue: mockRevenue,
-                    costs: totalExpenses
-                });
-
-                setData({
-                    tripsByDay: [
-                        { name: 'Mon', trips: 14 }, { name: 'Tue', trips: 18 }, { name: 'Wed', trips: 15 },
-                        { name: 'Thu', trips: 22 }, { name: 'Fri', trips: 28 }, { name: 'Sat', trips: 12 }, { name: 'Sun', trips: 7 }
-                    ],
-                    expensesByType: [
-                        { name: 'Fuel', value: fuelExpenses || 4500, color: COLORS.warning },
-                        { name: 'Maintenance', value: maintExpenses || 2800, color: COLORS.danger },
-                        { name: 'Insurance', value: 1200, color: COLORS.primary },
-                        { name: 'Service', value: 900, color: COLORS.info }
-                    ],
-                    fleetUtilization: [
-                        { name: 'Week 1', rate: 75 }, { name: 'Week 2', rate: 82 }, { name: 'Week 3', rate: 88 }, { name: 'Week 4', rate: 91 }
-                    ],
-                    revenueVsCost: [
-                        { name: 'Jan', cost: 4200, revenue: 5800 },
-                        { name: 'Feb', cost: 3800, revenue: 6200 },
-                        { name: 'Mar', cost: 4500, revenue: 7100 },
-                        { name: 'Apr', cost: 4100, revenue: 6900 },
-                        { name: 'May', cost: 5200, revenue: 8400 },
-                        { name: 'Jun', cost: 4800, revenue: 8100 }
-                    ],
-                    driverPerformance: [
-                        { name: 'Safety', value: 92 },
-                        { name: 'Punctuality', value: 88 },
-                        { name: 'Efficiency', value: 85 },
-                        { name: 'Fuel Economy', value: 79 },
-                        { name: 'Maintenance', value: 94 }
-                    ]
-                });
-            } catch (e) {
-                console.error('Analytics load error:', e);
-                toast("Failed to load analytics data", "error");
-            } finally {
-                setLoading(false);
-            }
-        };
-
         loadAnalytics();
     }, [token, toast]);
 

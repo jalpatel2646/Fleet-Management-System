@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
 import api from '../api/config';
+import { useAuth } from '../context/AuthContext';
+import { useConfirm, useToast } from '../context/ConfirmContext';
 
 const Expenses = () => {
     const [expenses, setExpenses] = useState([]);

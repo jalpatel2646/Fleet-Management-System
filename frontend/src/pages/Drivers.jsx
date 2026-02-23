@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
-import { Search, Plus, Phone, Calendar, X, Trash2, Edit3, AlertTriangle, Shield, Users, UserCheck, UserX } from 'lucide-react';
+import api from '../api/config';
+import { useAuth } from '../context/AuthContext';
 import { useConfirm, useToast } from '../context/ConfirmContext';
 import { AnimatedNumber, AnimatedButton, StaggerContainer, StaggerItem } from '../components/AnimatedComponents';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -57,17 +57,18 @@ const Drivers = () => {
     const confirm = useConfirm();
     const toast = useToast();
 
+    const fetchDrivers = async () => {
+        try {
+            const res = await api.get('/drivers');
+            setDrivers(res.data);
+        } catch (error) {
+            toast("Failed to load drivers", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchDrivers = async () => {
-            try {
-                const res = await api.get('/drivers');
-                setDrivers(res.data);
-            } catch (error) {
-                toast("Failed to load drivers", "error");
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchDrivers();
     }, []);
 
@@ -127,10 +128,10 @@ const Drivers = () => {
         };
         try {
             if (editingDriver) {
-                await axios.patch(`http://localhost:5000/api/drivers/${editingDriver._id}`, payload, { headers });
+                await api.patch(`/drivers/${editingDriver._id}`, payload);
                 toast('Driver updated successfully', 'success');
             } else {
-                await axios.post('http://localhost:5000/api/drivers', payload, { headers });
+                await api.post('/drivers', payload);
                 toast('Driver added successfully', 'success');
             }
             setShowModal(false);
@@ -143,7 +144,7 @@ const Drivers = () => {
         const ok = await confirm({ title: 'Delete Driver', message: `Delete ${d.name}? This action cannot be undone.` });
         if (!ok) return;
         try {
-            await axios.delete(`http://localhost:5000/api/drivers/${d._id}`, { headers });
+            await api.delete(`/drivers/${d._id}`);
             toast('Driver removed', 'success');
             fetchDrivers();
         } catch (e) { toast('Failed to delete', 'error'); }

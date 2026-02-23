@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/config';
+import { useAuth } from '../context/AuthContext';
+import { useConfirm, useToast } from '../context/ConfirmContext';
 import {
     Truck, Users, Route, Receipt, Wrench, Fuel,
     TrendingUp, TrendingDown, AlertTriangle, CheckCircle,
@@ -204,7 +206,6 @@ const Dashboard = () => {
                 const maintCost = expensesData.filter(x => x.type === 'Maintenance').reduce((a, c) => a + c.amount, 0);
                 const totalExpenses = expensesData.reduce((a, c) => a + c.amount, 0);
                 const revenue = expensesData.filter(x => x.type === 'Revenue').reduce((a, c) => a + c.amount, 0);
-
 
                 setStats({
                     totalVehicles: vehiclesData.length,

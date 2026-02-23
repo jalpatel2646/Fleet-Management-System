@@ -1,24 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import api from '../api/config';
+import { useAuth } from '../context/AuthContext';
+import { useConfirm, useToast } from '../context/ConfirmContext';
 import {
     Plus, Search, Trash2, ChevronDown, User, X,
     Truck, Car, BusFront, Gauge, MapPin, Weight,
     CheckCircle, AlertTriangle, XCircle, Navigation2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// ─── MOCK DATA ─────────────────────────────────────────────────────────────────
-const INITIAL_VEHICLES = [
-    { id: 1, plate: 'UP65-AH-2009', driverName: 'Ravi Sharma', type: 'Truck', maxLoad: 8000, odometer: 142300, region: 'North Delhi', status: 'Available' },
-    { id: 2, plate: 'MH12-XY-4521', driverName: 'Priya Mehta', type: 'Van', maxLoad: 2000, odometer: 87650, region: 'Mumbai West', status: 'On Trip' },
-    { id: 3, plate: 'KA09-AB-7731', driverName: 'Arun Kumar', type: 'SUV', maxLoad: 1200, odometer: 55200, region: 'Bangalore', status: 'In Shop' },
-    { id: 4, plate: 'DL01-PQ-3302', driverName: 'Sonu Verma', type: 'Sedan', maxLoad: 600, odometer: 33900, region: 'South Delhi', status: 'Available' },
-    { id: 5, plate: 'GJ05-CD-8812', driverName: 'Mohan Patel', type: 'Truck', maxLoad: 12000, odometer: 298400, region: 'Ahmedabad', status: 'Out of Service' },
-    { id: 6, plate: 'TN22-EF-1190', driverName: 'Deepa Nair', type: 'Van', maxLoad: 2500, odometer: 61500, region: 'Chennai', status: 'On Trip' },
-    { id: 7, plate: 'RJ14-GH-6645', driverName: 'Vikram Singh', type: 'SUV', maxLoad: 1000, odometer: 44800, region: 'Jaipur', status: 'Available' },
-    { id: 8, plate: 'WB23-IJ-9021', driverName: 'Anita Das', type: 'Sedan', maxLoad: 550, odometer: 22100, region: 'Kolkata East', status: 'In Shop' },
-    { id: 9, plate: 'MP07-KL-5537', driverName: 'Rahul Gupta', type: 'Truck', maxLoad: 9500, odometer: 178900, region: 'Indore', status: 'On Trip' },
-    { id: 10, plate: 'PB11-MN-4423', driverName: 'Simran Kaur', type: 'Van', maxLoad: 1800, odometer: 39200, region: 'Ludhiana', status: 'Available' },
-];
 
 // ─── STATUS CONFIG ──────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -41,7 +30,7 @@ const AVATAR_GRADIENTS = [
 // ─── SUB-COMPONENTS ─────────────────────────────────────────────────────────────
 
 const DriverAvatar = ({ name, index }) => {
-    const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const initials = name ? name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '??';
     const [g1, g2] = AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
     return (
         <motion.div
@@ -184,39 +173,71 @@ const FilterSelect = ({ value, onChange, options, label }) => (
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────────
 const Vehicles = () => {
-    const [vehicles, setVehicles] = useState(INITIAL_VEHICLES);
+    const [vehicles, setVehicles] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState('All');
     const [statusFilter, setStatusFilter] = useState('All');
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [showAdd, setShowAdd] = useState(false);
     const [form, setForm] = useState({ plate: '', driverName: '', type: 'Truck', maxLoad: '', odometer: '', region: '', status: 'Available' });
+    const toast = useToast();
+    const confirm = useConfirm();
+
+    const fetchVehicles = async () => {
+        try {
+            const res = await api.get('/vehicles');
+            setVehicles(res.data);
+        } catch (err) {
+            toast('Failed to load vehicles', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchVehicles();
+    }, []);
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase();
         return vehicles.filter(v => {
             const matchSearch = !q ||
                 v.plate.toLowerCase().includes(q) ||
-                v.region.toLowerCase().includes(q) ||
-                v.driverName.toLowerCase().includes(q);
+                (v.region && v.region.toLowerCase().includes(q)) ||
+                (v.driverName && v.driverName.toLowerCase().includes(q));
             const matchType = typeFilter === 'All' || v.type === typeFilter;
             const matchStatus = statusFilter === 'All' || v.status === statusFilter;
             return matchSearch && matchType && matchStatus;
         });
     }, [vehicles, search, typeFilter, statusFilter]);
 
-    const confirmDelete = () => {
-        setVehicles(prev => prev.filter(v => v.id !== deleteTarget.id));
-        setDeleteTarget(null);
+    const confirmDelete = async () => {
+        try {
+            await api.delete(`/vehicles/${deleteTarget._id}`);
+            toast('Vehicle deleted', 'success');
+            fetchVehicles();
+        } catch (err) {
+            toast('Failed to delete vehicle', 'error');
+        } finally {
+            setDeleteTarget(null);
+        }
     };
 
-    const handleAdd = e => {
+    const handleAdd = async (e) => {
         e.preventDefault();
-        const newV = { ...form, id: Date.now(), maxLoad: Number(form.maxLoad), odometer: Number(form.odometer) };
-        setVehicles(prev => [newV, ...prev]);
-        setForm({ plate: '', driverName: '', type: 'Truck', maxLoad: '', odometer: '', region: '', status: 'Available' });
-        setShowAdd(false);
+        try {
+            const payload = { ...form, maxLoad: Number(form.maxLoad), odometer: Number(form.odometer) };
+            await api.post('/vehicles', payload);
+            toast('Vehicle added successfully', 'success');
+            setForm({ plate: '', driverName: '', type: 'Truck', maxLoad: '', odometer: '', region: '', status: 'Available' });
+            setShowAdd(false);
+            fetchVehicles();
+        } catch (err) {
+            toast('Failed to add vehicle', 'error');
+        }
     };
+
 
     const inputCls = {
         width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.04)',
@@ -298,100 +319,111 @@ const Vehicles = () => {
                         </thead>
                         <motion.tbody>
                             <AnimatePresence>
-                                {filtered.map((v, i) => {
-                                    const TypeIcon = TYPE_ICONS[v.type] || Truck;
-                                    return (
-                                        <motion.tr
-                                            key={v.id}
-                                            initial={{ opacity: 0, y: -12 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, x: -40, transition: { duration: 0.25 } }}
-                                            transition={{ delay: i * 0.04, duration: 0.3 }}
-                                            whileHover={{ background: 'rgba(255,255,255,0.03)' }}
-                                            style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.2s', cursor: 'default' }}
-                                        >
-                                            {/* License Plate */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13, color: '#c7d2fe', letterSpacing: '0.05em' }}>
-                                                    {v.plate}
-                                                </span>
-                                            </td>
-
-                                            {/* Driver */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    <DriverAvatar name={v.driverName} index={v.id} />
-                                                    <span style={{ fontSize: 13, fontWeight: 600, color: '#ddd', whiteSpace: 'nowrap' }}>
-                                                        {v.driverName}
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={8} style={{ padding: '56px 20px', textAlign: 'center' }}>
+                                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ display: 'inline-block' }}>
+                                                <RefreshCw size={36} color="#4f46e5" />
+                                            </motion.div>
+                                            <p style={{ color: '#eee', fontSize: 15, fontWeight: 600, marginTop: 12 }}>Loading fleet data...</p>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filtered.map((v, i) => {
+                                        const TypeIcon = TYPE_ICONS[v.type] || Truck;
+                                        return (
+                                            <motion.tr
+                                                key={v._id || v.id}
+                                                initial={{ opacity: 0, y: -12 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, x: -40, transition: { duration: 0.25 } }}
+                                                transition={{ delay: i * 0.04, duration: 0.3 }}
+                                                whileHover={{ background: 'rgba(255,255,255,0.03)' }}
+                                                style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.2s', cursor: 'default' }}
+                                            >
+                                                {/* License Plate */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13, color: '#c7d2fe', letterSpacing: '0.05em' }}>
+                                                        {v.plate}
                                                     </span>
-                                                </div>
-                                            </td>
+                                                </td>
 
-                                            {/* Type */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <TypeIcon size={14} color="#818cf8" />
+                                                {/* Driver */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                        <DriverAvatar name={v.driverName} index={i} />
+                                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#ddd', whiteSpace: 'nowrap' }}>
+                                                            {v.driverName}
+                                                        </span>
                                                     </div>
-                                                    <span style={{ fontSize: 13, fontWeight: 600, color: '#bbb' }}>{v.type}</span>
-                                                </div>
-                                            </td>
+                                                </td>
 
-                                            {/* Max Load */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                    <Weight size={13} color="#555" />
-                                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#aaa' }}>
-                                                        {v.maxLoad.toLocaleString()} kg
-                                                    </span>
-                                                </div>
-                                            </td>
+                                                {/* Type */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                                        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(129,140,248,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <TypeIcon size={14} color="#818cf8" />
+                                                        </div>
+                                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#bbb' }}>{v.type}</span>
+                                                    </div>
+                                                </td>
 
-                                            {/* Odometer */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                    <Gauge size={13} color="#555" />
-                                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#aaa' }}>
-                                                        {v.odometer.toLocaleString()} km
-                                                    </span>
-                                                </div>
-                                            </td>
+                                                {/* Max Load */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                        <Weight size={13} color="#555" />
+                                                        <span style={{ fontSize: 13, fontWeight: 700, color: '#aaa' }}>
+                                                            {v.maxLoad?.toLocaleString()} kg
+                                                        </span>
+                                                    </div>
+                                                </td>
 
-                                            {/* Region */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                    <MapPin size={13} color="#555" />
-                                                    <span style={{ fontSize: 13, color: '#888', whiteSpace: 'nowrap' }}>{v.region}</span>
-                                                </div>
-                                            </td>
+                                                {/* Odometer */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                        <Gauge size={13} color="#555" />
+                                                        <span style={{ fontSize: 13, fontWeight: 700, color: '#aaa' }}>
+                                                            {v.odometer?.toLocaleString()} km
+                                                        </span>
+                                                    </div>
+                                                </td>
 
-                                            {/* Status */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <StatusBadge status={v.status} />
-                                            </td>
+                                                {/* Region */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                        <MapPin size={13} color="#555" />
+                                                        <span style={{ fontSize: 13, color: '#888', whiteSpace: 'nowrap' }}>{v.region}</span>
+                                                    </div>
+                                                </td>
 
-                                            {/* Actions */}
-                                            <td style={{ padding: '14px 18px' }}>
-                                                <motion.button
-                                                    whileHover={{ scale: 1.15, background: 'rgba(239,68,68,0.15)', color: '#f87171' }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    onClick={() => setDeleteTarget(v)}
-                                                    style={{
-                                                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                                                        borderRadius: 8, width: 34, height: 34, display: 'flex',
-                                                        alignItems: 'center', justifyContent: 'center',
-                                                        cursor: 'pointer', color: '#555', transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    <Trash2 size={15} />
-                                                </motion.button>
-                                            </td>
-                                        </motion.tr>
-                                    );
-                                })}
+                                                {/* Status */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <StatusBadge status={v.status} />
+                                                </td>
+
+                                                {/* Actions */}
+                                                <td style={{ padding: '14px 18px' }}>
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.15, background: 'rgba(239,68,68,0.15)', color: '#f87171' }}
+                                                        whileTap={{ scale: 0.9 }}
+                                                        onClick={() => setDeleteTarget(v)}
+                                                        style={{
+                                                            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                                                            borderRadius: 8, width: 34, height: 34, display: 'flex',
+                                                            alignItems: 'center', justifyContent: 'center',
+                                                            cursor: 'pointer', color: '#555', transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </motion.button>
+                                                </td>
+                                            </motion.tr>
+                                        );
+                                    })
+                                )}
                             </AnimatePresence>
 
-                            {filtered.length === 0 && (
+                            {!loading && filtered.length === 0 && (
                                 <tr>
                                     <td colSpan={8} style={{ padding: '56px 20px', textAlign: 'center' }}>
                                         <Search size={36} color="#2a2a2a" style={{ marginBottom: 12 }} />
