@@ -203,25 +203,26 @@ const Maintenance = () => {
     const confirm = useConfirm();
     const toast = useToast();
 
+    const fetchVehiclesAndRecords = async () => {
+        setLoading(true);
+        try {
+            const [vRes, mRes] = await Promise.all([
+                api.get('/vehicles'),
+                api.get('/maintenance'),
+            ]);
+            setVehicles(vRes.data);
+            setRecords(mRes.data);
+        } catch (error) {
+            toast("Failed to load maintenance data", "error");
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchVehiclesAndRecords = async () => {
-            setLoading(true);
-            try {
-                const [vRes, mRes] = await Promise.all([
-                    api.get('/vehicles'),
-                    api.get('/maintenance'),
-                ]);
-                setVehicles(vRes.data);
-                setRecords(mRes.data);
-            } catch (error) {
-                toast("Failed to load maintenance data", "error");
-                console.error(error);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchVehiclesAndRecords();
-    }, [token, toast]); // Depend on token and toast if they are stable or memoized
+    }, [token, toast]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

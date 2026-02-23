@@ -1,6 +1,10 @@
+import React, { useState, useEffect } from 'react';
 import api from '../api/config';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm, useToast } from '../context/ConfirmContext';
+import { Loader2, Plus, Fuel, DollarSign, TrendingUp, Trash2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatedCard, AnimatedButton } from '../components/AnimatedComponents';
 
 const Expenses = () => {
     const [expenses, setExpenses] = useState([]);

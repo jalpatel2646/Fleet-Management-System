@@ -3,6 +3,10 @@ import api from '../api/config';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm, useToast } from '../context/ConfirmContext';
 import { AnimatedNumber, AnimatedButton, StaggerContainer, StaggerItem } from '../components/AnimatedComponents';
+import {
+    Plus, Search, Trash2, Edit3, X, Users, UserCheck, UserX,
+    AlertTriangle, Shield, Calendar
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ── colour tokens ── */

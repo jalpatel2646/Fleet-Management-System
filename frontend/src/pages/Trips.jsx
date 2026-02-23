@@ -1,6 +1,10 @@
+import React, { useState, useEffect } from 'react';
 import api from '../api/config';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm, useToast } from '../context/ConfirmContext';
+import { Plus, ChevronDown, Navigation, Check, Trash2, X, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatedButton } from '../components/AnimatedComponents';
 
 /* ═══════════════════════════════════════════
    STATUS BADGE CONFIG

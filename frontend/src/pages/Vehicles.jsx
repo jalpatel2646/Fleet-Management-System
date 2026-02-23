@@ -5,7 +5,8 @@ import { useConfirm, useToast } from '../context/ConfirmContext';
 import {
     Plus, Search, Trash2, ChevronDown, User, X,
     Truck, Car, BusFront, Gauge, MapPin, Weight,
-    CheckCircle, AlertTriangle, XCircle, Navigation2
+    CheckCircle, AlertTriangle, XCircle, Navigation2, RefreshCw,
+    Edit3, Users, UserCheck, UserX, Shield, Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
