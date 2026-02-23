@@ -207,16 +207,26 @@ const Dashboard = () => {
 
 
                 setStats({
-                    totalExpenses: e.data.reduce((a, c) => a + c.amount, 0),
-                    fuelCost: e.data.filter(x => x.type === 'Fuel').reduce((a, c) => a + c.amount, 0),
-                    maintCost: e.data.filter(x => x.type === 'Maintenance').reduce((a, c) => a + c.amount, 0),
-                    revenue: e.data.filter(x => x.type === 'Revenue').reduce((a, c) => a + c.amount, 0),
+                    totalVehicles: vehiclesData.length,
+                    activeVehicles: vehiclesData.filter(x => x.status === 'Available' || x.status === 'On Trip').length,
+                    inMaintenance: vehiclesData.filter(x => x.status === 'In Shop').length,
+                    activeDrivers: driversData.filter(dr => dr.status === 'On Duty').length,
+                    pendingTrips: tripsData.filter(tr => tr.status === 'Draft' || tr.status === 'Dispatched').length,
+                    completedTrips: tripsData.filter(tr => tr.status === 'Completed').length,
+                    fuelCost,
+                    maintCost,
+                    revenue,
+                    totalExpenses,
                 });
-            } catch (err) { console.error(err); }
-            finally { setLoading(false); }
+            } catch (err) {
+                console.error(err);
+                toast("Failed to load dashboard data", "error");
+            } finally {
+                setLoading(false);
+            }
         };
-        load();
-    }, []);
+        fetchStats();
+    }, [token, toast]);
 
     if (loading) return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: '16px' }}>
