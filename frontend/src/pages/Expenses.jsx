@@ -1,328 +1,264 @@
-import React, { useState } from 'react';
-import { Fuel, DollarSign, TrendingUp, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Fuel, DollarSign, TrendingUp, Plus, Trash2, X, Loader2, Calendar, Truck, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
+import { useConfirm, useToast } from '../context/ConfirmContext';
+import { AnimatedCard, AnimatedNumber, StaggerContainer, StaggerItem, AnimatedButton } from '../components/AnimatedComponents';
 
-/* ═══════════════════════════════════════════
-   STATIC DATA — matches screenshot exactly
-═══════════════════════════════════════════ */
-const EXPENSES_DATA = [
-    { id: 1, vehicle: 'ABC-1234', date: '2026-02-20', liters: 120, cost: 198, perLiter: 1.65 },
-    { id: 2, vehicle: 'DEF-5678', date: '2026-02-19', liters: 65, cost: 107, perLiter: 1.65 },
-    { id: 3, vehicle: 'GHI-9012', date: '2026-02-18', liters: 140, cost: 231, perLiter: 1.65 },
-    { id: 4, vehicle: 'MNO-7890', date: '2026-02-17', liters: 80, cost: 132, perLiter: 1.65 },
-    { id: 5, vehicle: 'PQR-2345', date: '2026-02-16', liters: 160, cost: 264, perLiter: 1.65 },
-    { id: 6, vehicle: 'ABC-1234', date: '2026-02-12', liters: 115, cost: 190, perLiter: 1.65 },
-    { id: 7, vehicle: 'JKL-3456', date: '2026-02-14', liters: 45, cost: 74, perLiter: 1.64 },
-    { id: 8, vehicle: 'DEF-5678', date: '2026-02-11', liters: 60, cost: 99, perLiter: 1.65 },
-];
-
-const totalFuelCost = EXPENSES_DATA.reduce((s, e) => s + e.cost, 0);
-const totalOperationalCost = totalFuelCost * 5; // ≈ $6,445 operational factor
-const totalLiters = EXPENSES_DATA.reduce((s, e) => s + e.liters, 0);
-
-/* ═══════════════════════════════════════════
-   COMPONENT
-═══════════════════════════════════════════ */
 const Expenses = () => {
+    const [expenses, setExpenses] = useState([]);
+    const [vehicles, setVehicles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [hoveredRow, setHoveredRow] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
 
-    /* ── KPI Card ── */
+    // Form state
+    const [formData, setFormData] = useState({
+        vehicle: '',
+        type: 'Fuel',
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        liters: '',
+        serviceType: '',
+        description: ''
+    });
+
+    const { token } = useAuth();
+    const confirm = useConfirm();
+    const toast = useToast();
+    const headers = { Authorization: `Bearer ${token}` };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [expRes, vehRes] = await Promise.all([
+                axios.get('http://localhost:5000/api/expenses', { headers }),
+                axios.get('http://localhost:5000/api/vehicles', { headers })
+            ]);
+            setExpenses(expRes.data);
+            setVehicles(vehRes.data);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            toast('Failed to load data', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddExpense = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            const payload = {
+                vehicle: formData.vehicle,
+                type: formData.type,
+                amount: Number(formData.amount),
+                date: formData.date,
+                details: {
+                    liters: formData.type === 'Fuel' ? Number(formData.liters) : undefined,
+                    serviceType: formData.type === 'Maintenance' ? formData.serviceType : undefined,
+                    description: formData.description
+                }
+            };
+
+            await axios.post('http://localhost:5000/api/expenses', payload, { headers });
+            toast('Entry added successfully', 'success');
+            setIsModalOpen(false);
+            setFormData({
+                vehicle: '',
+                type: 'Fuel',
+                amount: '',
+                date: new Date().toISOString().split('T')[0],
+                liters: '',
+                serviceType: '',
+                description: ''
+            });
+            fetchData();
+        } catch (error) {
+            console.error('Error adding expense:', error);
+            toast(error.response?.data?.message || 'Failed to add entry', 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDeleteExpense = async (id) => {
+        const isConfirmed = await confirm({
+            title: 'Delete Expense Entry',
+            message: 'Are you sure you want to permanently remove this expense record?',
+            confirmText: 'Delete Record',
+            type: 'danger'
+        });
+
+        if (!isConfirmed) return;
+
+        try {
+            await axios.delete(`http://localhost:5000/api/expenses/${id}`, { headers });
+            toast('Entry deleted', 'success');
+            setExpenses(expenses.filter(e => e._id !== id));
+        } catch (error) {
+            toast('Failed to delete entry', 'error');
+        }
+    };
+
+    const totalFuelCost = expenses.filter(e => e.type === 'Fuel').reduce((s, e) => s + e.amount, 0);
+    const totalMaintCost = expenses.filter(e => e.type === 'Maintenance').reduce((s, e) => s + e.amount, 0);
+    const totalLiters = expenses.reduce((s, e) => s + (e.details?.liters || 0), 0);
+
     const KPICard = ({ label, value, icon: Icon, iconColor, iconBg }) => (
-        <motion.div
-            whileHover={{ y: -3, boxShadow: '0 12px 32px rgba(0,0,0,0.4)' }}
-            style={{
-                flex: '1 1 0',
-                background: 'linear-gradient(135deg, #141414 0%, #1a1a2e 100%)',
-                border: '1px solid #1e1e1e',
-                borderRadius: '16px',
-                padding: '22px 24px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px',
-                cursor: 'default',
-                transition: 'all 0.2s',
-            }}
-        >
+        <AnimatedCard style={{ flex: '1 1 0', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span
-                    style={{
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        color: '#888',
-                        letterSpacing: '0.01em',
-                    }}
-                >
-                    {label}
-                </span>
-                <div
-                    style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        background: iconBg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}
-                >
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#888' }}>{label}</span>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon size={18} color={iconColor} />
                 </div>
             </div>
-            <span
-                style={{
-                    fontSize: '28px',
-                    fontWeight: 800,
-                    color: '#fff',
-                    letterSpacing: '-0.02em',
-                    fontFeatureSettings: "'tnum'",
-                }}
-            >
-                {value}
-            </span>
-        </motion.div>
+            <h2 style={{ fontSize: '28px', fontWeight: 800, color: '#fff', margin: 0 }}>{value}</h2>
+        </AnimatedCard>
     );
 
-    /* ── Delete button ── */
-    const renderDelete = () => (
-        <motion.button
-            whileHover={{ scale: 1.15, color: '#f87171' }}
-            whileTap={{ scale: 0.9 }}
-            style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '8px',
-                width: '32px',
-                height: '32px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: '#555',
-                transition: 'all 0.2s',
-            }}
-        >
-            <Trash2 size={14} />
-        </motion.button>
+    if (loading) return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+            <Loader2 className="animate-spin" size={40} color="#6366f1" />
+        </div>
     );
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* ── HEADER ── */}
-            <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                }}
-            >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-                    <h1
-                        style={{
-                            fontSize: '26px',
-                            fontWeight: 800,
-                            color: '#fff',
-                            margin: '0 0 4px',
-                            letterSpacing: '-0.5px',
-                        }}
-                    >
-                        Fuel &amp; Expenses
-                    </h1>
+                    <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>Fuel &amp; Expenses</h1>
                     <p style={{ fontSize: '14px', color: '#555', margin: 0, fontWeight: 500 }}>
-                        <span style={{ color: '#818cf8', fontWeight: 700 }}>{EXPENSES_DATA.length}</span> fuel
-                        entries
+                        <span style={{ color: '#818cf8', fontWeight: 700 }}>{expenses.length}</span> total entries
                     </p>
                 </motion.div>
-                <motion.button
-                    whileHover={{ scale: 1.04, boxShadow: '0 0 24px rgba(99,102,241,0.4)' }}
-                    whileTap={{ scale: 0.97 }}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '11px 20px',
-                        borderRadius: '12px',
-                        border: 'none',
-                        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                        color: '#fff',
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
-                    }}
-                >
+                <AnimatedButton variant="primary" onClick={() => setIsModalOpen(true)}>
                     <Plus size={17} /> Add Entry
-                </motion.button>
+                </AnimatedButton>
             </div>
 
-            {/* ── KPI CARDS ── */}
+            {/* KPI Cards */}
             <div style={{ display: 'flex', gap: '16px' }}>
-                <KPICard
-                    label="Total Fuel Cost"
-                    value={`$${totalFuelCost.toLocaleString()}`}
-                    icon={Fuel}
-                    iconColor="#fbbf24"
-                    iconBg="rgba(251,191,36,0.15)"
-                />
-                <KPICard
-                    label="Total Operational Cost"
-                    value={`$${totalOperationalCost.toLocaleString()}`}
-                    icon={DollarSign}
-                    iconColor="#ef4444"
-                    iconBg="rgba(239,68,68,0.15)"
-                />
-                <KPICard
-                    label="Total Liters"
-                    value={totalLiters.toLocaleString()}
-                    icon={TrendingUp}
-                    iconColor="#3b82f6"
-                    iconBg="rgba(59,130,246,0.15)"
-                />
+                <KPICard label="Total Fuel Cost" value={`$${totalFuelCost.toLocaleString()}`} icon={Fuel} iconColor="#fbbf24" iconBg="rgba(251,191,36,0.15)" />
+                <KPICard label="Maintenance Cost" value={`$${totalMaintCost.toLocaleString()}`} icon={DollarSign} iconColor="#ef4444" iconBg="rgba(239,68,68,0.15)" />
+                <KPICard label="Total Liters" value={totalLiters.toLocaleString()} icon={TrendingUp} iconColor="#3b82f6" iconBg="rgba(59,130,246,0.15)" />
             </div>
 
-            {/* ── DATA TABLE ── */}
-            <div
-                style={{
-                    background: '#141414',
-                    borderRadius: '16px',
-                    border: '1px solid #1e1e1e',
-                    overflow: 'hidden',
-                }}
-            >
+            {/* Table */}
+            <div style={{ background: '#141414', borderRadius: '16px', border: '1px solid #1e1e1e', overflow: 'hidden' }}>
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
                         <thead>
-                            <tr style={{ borderBottom: '1px solid #1e1e1e' }}>
-                                {[
-                                    { label: 'Vehicle', align: 'left' },
-                                    { label: 'Date', align: 'left' },
-                                    { label: 'Liters', align: 'right' },
-                                    { label: 'Cost', align: 'right' },
-                                    { label: '$/L', align: 'right' },
-                                    { label: 'Actions', align: 'center' },
-                                ].map((col) => (
-                                    <th
-                                        key={col.label}
-                                        style={{
-                                            padding: '14px 22px',
-                                            textAlign: col.align,
-                                            fontSize: '11px',
-                                            fontWeight: 700,
-                                            color: '#555',
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.06em',
-                                            whiteSpace: 'nowrap',
-                                            background: '#0f0f0f',
-                                        }}
-                                    >
-                                        {col.label}
-                                    </th>
+                            <tr style={{ borderBottom: '1px solid #1e1e1e', background: '#0f0f0f' }}>
+                                {['Vehicle', 'Type', 'Date', 'Amount', 'Liters/Service', 'Actions'].map(h => (
+                                    <th key={h} style={{ padding: '14px 22px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <AnimatePresence>
-                            <motion.tbody>
-                                {EXPENSES_DATA.map((exp, idx) => (
+                        <tbody>
+                            <AnimatePresence>
+                                {expenses.map((exp, idx) => (
                                     <motion.tr
-                                        key={exp.id}
+                                        key={exp._id}
                                         initial={{ opacity: 0, y: -10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: idx * 0.04, duration: 0.3 }}
-                                        onMouseEnter={() => setHoveredRow(exp.id)}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        onMouseEnter={() => setHoveredRow(exp._id)}
                                         onMouseLeave={() => setHoveredRow(null)}
-                                        style={{
-                                            borderBottom:
-                                                idx < EXPENSES_DATA.length - 1
-                                                    ? '1px solid rgba(255,255,255,0.04)'
-                                                    : 'none',
-                                            background:
-                                                hoveredRow === exp.id ? 'rgba(255,255,255,0.03)' : 'transparent',
-                                            transition: 'background 0.15s ease',
-                                            cursor: 'default',
-                                        }}
+                                        style={{ borderBottom: '1px solid #1a1a1a', background: hoveredRow === exp._id ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.2s' }}
                                     >
-                                        {/* Vehicle */}
+                                        <td style={{ padding: '16px 22px', color: '#e2e8f0', fontWeight: 700, fontFamily: 'monospace' }}>{exp.vehicle?.plateNumber || 'N/A'}</td>
                                         <td style={{ padding: '16px 22px' }}>
-                                            <span
-                                                style={{
-                                                    fontSize: '13.5px',
-                                                    fontWeight: 700,
-                                                    color: '#e2e8f0',
-                                                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                                    letterSpacing: '0.02em',
-                                                }}
-                                            >
-                                                {exp.vehicle}
-                                            </span>
+                                            <span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: exp.type === 'Fuel' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)', color: exp.type === 'Fuel' ? '#fbbf24' : '#ef4444' }}>{exp.type}</span>
                                         </td>
-
-                                        {/* Date */}
+                                        <td style={{ padding: '16px 22px', color: '#888', fontSize: '13px' }}>{new Date(exp.date).toLocaleDateString()}</td>
+                                        <td style={{ padding: '16px 22px', color: '#fff', fontWeight: 800 }}>${exp.amount.toLocaleString()}</td>
+                                        <td style={{ padding: '16px 22px', color: '#94a3b8', fontSize: '13px' }}>
+                                            {exp.type === 'Fuel' ? `${exp.details?.liters}L` : exp.details?.serviceType || '-'}
+                                        </td>
                                         <td style={{ padding: '16px 22px' }}>
-                                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#888' }}>
-                                                {exp.date}
-                                            </span>
-                                        </td>
-
-                                        {/* Liters */}
-                                        <td style={{ padding: '16px 22px', textAlign: 'right' }}>
-                                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8' }}>
-                                                {exp.liters}L
-                                            </span>
-                                        </td>
-
-                                        {/* Cost */}
-                                        <td style={{ padding: '16px 22px', textAlign: 'right' }}>
-                                            <span
-                                                style={{
-                                                    fontSize: '14px',
-                                                    fontWeight: 800,
-                                                    color: '#fbbf24',
-                                                    fontFeatureSettings: "'tnum'",
-                                                }}
-                                            >
-                                                ${exp.cost}
-                                            </span>
-                                        </td>
-
-                                        {/* $/L */}
-                                        <td style={{ padding: '16px 22px', textAlign: 'right' }}>
-                                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#888' }}>
-                                                ${exp.perLiter.toFixed(2)}
-                                            </span>
-                                        </td>
-
-                                        {/* Actions */}
-                                        <td style={{ padding: '16px 22px', textAlign: 'center' }}>
-                                            {renderDelete()}
+                                            <button onClick={() => handleDeleteExpense(exp._id)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><Trash2 size={16} /></button>
                                         </td>
                                     </motion.tr>
                                 ))}
-                            </motion.tbody>
-                        </AnimatePresence>
+                            </AnimatePresence>
+                        </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* ── FOOTER ── */}
-            <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0 4px',
-                }}
-            >
-                <span style={{ fontSize: '13px', color: '#555', fontWeight: 500 }}>
-                    Showing{' '}
-                    <span style={{ color: '#aaa', fontWeight: 600 }}>{EXPENSES_DATA.length}</span> fuel
-                    entries
-                </span>
-                <span style={{ fontSize: '13px', color: '#555', fontWeight: 500 }}>
-                    Avg cost per liter:{' '}
-                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>
-                        ${(totalFuelCost / totalLiters).toFixed(2)}
-                    </span>
-                </span>
-            </div>
+            {/* Modal */}
+            {isModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{ background: '#141414', border: '1px solid #222', borderRadius: '20px', width: '100%', maxWidth: '500px', padding: '32px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+                            <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>Add Expense Entry</h2>
+                            <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20} /></button>
+                        </div>
+
+                        <form onSubmit={handleAddExpense} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+                                <div style={{ flex: 1, minWidth: '200px' }}>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Vehicle</label>
+                                    <select required value={formData.vehicle} onChange={(e) => setFormData({ ...formData, vehicle: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#fff' }}>
+                                        <option value="">Select Vehicle</option>
+                                        {vehicles.map(v => <option key={v._id} value={v._id}>{v.plateNumber} ({v.model})</option>)}
+                                    </select>
+                                </div>
+                                <div style={{ flex: 1, minWidth: '200px' }}>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Type</label>
+                                    <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#fff' }}>
+                                        <option value="Fuel">Fuel</option>
+                                        <option value="Maintenance">Maintenance</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+                                <div style={{ flex: 1, minWidth: '200px' }}>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Amount ($)</label>
+                                    <input required type="number" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#fff' }} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: '200px' }}>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Date</label>
+                                    <input required type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#fff' }} />
+                                </div>
+                            </div>
+
+                            {formData.type === 'Fuel' ? (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Liters</label>
+                                    <input required type="number" value={formData.liters} onChange={(e) => setFormData({ ...formData, liters: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#fff' }} />
+                                </div>
+                            ) : (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Service Type</label>
+                                    <input required type="text" placeholder="e.g. Oil Change, Tire Rotation" value={formData.serviceType} onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#fff' }} />
+                                </div>
+                            )}
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: '12px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Description</label>
+                                <textarea rows="3" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: '#1c1c1c', border: '1px solid #2a2a2a', color: '#fff', resize: 'none' }}></textarea>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                                <AnimatedButton variant="secondary" onClick={() => setIsModalOpen(false)} style={{ flex: 1 }}>Cancel</AnimatedButton>
+                                <AnimatedButton type="submit" variant="primary" disabled={submitting} style={{ flex: 1 }}>
+                                    {submitting ? <Loader2 className="animate-spin" size={16} /> : 'Save Entry'}
+                                </AnimatedButton>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
         </div>
     );
 };
