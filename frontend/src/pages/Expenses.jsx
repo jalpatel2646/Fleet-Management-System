@@ -1,10 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Fuel, DollarSign, TrendingUp, Plus, Trash2, X, Loader2, Calendar, Truck, AlertCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
-import { useConfirm, useToast } from '../context/ConfirmContext';
-import { AnimatedCard, AnimatedNumber, StaggerContainer, StaggerItem, AnimatedButton } from '../components/AnimatedComponents';
+import api from '../api/config';
 
 const Expenses = () => {
     const [expenses, setExpenses] = useState([]);
@@ -28,7 +23,6 @@ const Expenses = () => {
     const { token } = useAuth();
     const confirm = useConfirm();
     const toast = useToast();
-    const headers = { Authorization: `Bearer ${token}` };
 
     useEffect(() => {
         fetchData();
@@ -38,8 +32,8 @@ const Expenses = () => {
         setLoading(true);
         try {
             const [expRes, vehRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/expenses', { headers }),
-                axios.get('http://localhost:5000/api/vehicles', { headers })
+                api.get('/expenses'),
+                api.get('/vehicles')
             ]);
             setExpenses(expRes.data);
             setVehicles(vehRes.data);
@@ -67,7 +61,7 @@ const Expenses = () => {
                 }
             };
 
-            await axios.post('http://localhost:5000/api/expenses', payload, { headers });
+            await api.post('/expenses', payload);
             toast('Entry added successfully', 'success');
             setIsModalOpen(false);
             setFormData({
@@ -99,7 +93,7 @@ const Expenses = () => {
         if (!isConfirmed) return;
 
         try {
-            await axios.delete(`http://localhost:5000/api/expenses/${id}`, { headers });
+            await api.delete(`/expenses/${id}`);
             toast('Entry deleted', 'success');
             setExpenses(expenses.filter(e => e._id !== id));
         } catch (error) {

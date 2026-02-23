@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import {
-    Plus, Check, X, Play, ChevronDown, MapPin, Truck,
-    Package, Navigation, DollarSign, MoreHorizontal, Loader2, Trash2
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
-import { useToast, useConfirm } from '../context/ConfirmContext';
-import { AnimatedCard, AnimatedButton, StaggerContainer, StaggerItem, AnimatedTableRow } from '../components/AnimatedComponents';
+import api from '../api/config';
 
 /* ═══════════════════════════════════════════
    STATUS BADGE CONFIG
@@ -46,7 +38,6 @@ const Trips = () => {
     const { token } = useAuth();
     const toast = useToast();
     const confirm = useConfirm();
-    const headers = { Authorization: `Bearer ${token}` };
 
     useEffect(() => {
         fetchData();
@@ -56,9 +47,9 @@ const Trips = () => {
         setLoading(true);
         try {
             const [tripsRes, vehRes, driRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/trips', { headers }),
-                axios.get('http://localhost:5000/api/vehicles', { headers }),
-                axios.get('http://localhost:5000/api/drivers', { headers })
+                api.get('/trips'),
+                api.get('/vehicles'),
+                api.get('/drivers')
             ]);
             setTrips(tripsRes.data);
             setVehicles(vehRes.data.filter(v => v.status === 'Available'));
@@ -79,7 +70,7 @@ const Trips = () => {
                 ...formData,
                 cargoWeight: Number(formData.cargoWeight),
             };
-            await axios.post('http://localhost:5000/api/trips', payload, { headers });
+            await api.post('/trips', payload);
             toast('Trip created successfully', 'success');
             setIsModalOpen(false);
             setFormData({
@@ -104,7 +95,7 @@ const Trips = () => {
         if (!isConfirmed) return;
 
         try {
-            await axios.patch(`http://localhost:5000/api/trips/${id}/complete`, {}, { headers });
+            await api.patch(`/trips/${id}/complete`, {});
             toast('Trip completed', 'success');
             fetchData();
         } catch (error) {
@@ -122,7 +113,7 @@ const Trips = () => {
         if (!isConfirmed) return;
 
         try {
-            await axios.delete(`http://localhost:5000/api/trips/${id}`, { headers });
+            await api.delete(`/trips/${id}`);
             toast('Trip deleted', 'success');
             setTrips(trips.filter(t => t._id !== id));
         } catch (error) {

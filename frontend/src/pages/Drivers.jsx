@@ -45,6 +45,7 @@ const inputStyle = {
 const Drivers = () => {
     const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { token } = useAuth();
     const [filter, setFilter] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editingDriver, setEditingDriver] = useState(null);
@@ -53,20 +54,22 @@ const Drivers = () => {
         safetyScore: '', tripCompletionRate: ''
     });
 
-    const token = localStorage.getItem('token');
-    const headers = { Authorization: `Bearer ${token}` };
     const confirm = useConfirm();
     const toast = useToast();
 
-    const fetchDrivers = async () => {
-        try {
-            const res = await axios.get('http://localhost:5000/api/drivers', { headers });
-            setDrivers(res.data);
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
-    };
-
-    useEffect(() => { fetchDrivers(); }, []);
+    useEffect(() => {
+        const fetchDrivers = async () => {
+            try {
+                const res = await api.get('/drivers');
+                setDrivers(res.data);
+            } catch (error) {
+                toast("Failed to load drivers", "error");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDrivers();
+    }, []);
 
     /* ── filtered list ── */
     const filtered = useMemo(() => {

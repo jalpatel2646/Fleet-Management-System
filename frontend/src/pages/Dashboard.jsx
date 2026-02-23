@@ -158,38 +158,55 @@ const ChartTip = ({ active, payload, label }) => {
    MAIN COMPONENT
 ══════════════════════════════════════ */
 const Dashboard = () => {
-    const [stats, setStats] = useState(null);
-    const [vehicles, setVehicles] = useState([]);
-    const [trips, setTrips] = useState([]);
-    const [expenses, setExpenses] = useState([]);
+    const [stats, setStats] = useState({
+        totalVehicles: 0,
+        tripsInProgress: 0,
+        activeDrivers: 0,
+        monthlyRevenue: 0,
+        activeVehicles: 0, // Added to match existing usage
+        inMaintenance: 0, // Added to match existing usage
+        pendingTrips: 0, // Added to match existing usage
+        completedTrips: 0, // Added to match existing usage
+        fuelCost: 0, // Added to match existing usage
+        maintCost: 0, // Added to match existing usage
+        revenue: 0, // Added to match existing usage
+        totalExpenses: 0, // Added to match existing usage
+    });
+    const [vehicles, setVehicles] = useState([]); // Kept for vehicleStatusData
+    const [trips, setTrips] = useState([]); // Kept for tripStatusData and recentTrips
+    const [expenses, setExpenses] = useState([]); // Kept for expenseBreakdown and recentExpenses
     const [loading, setLoading] = useState(true);
     const [now] = useState(new Date());
 
-    const token = localStorage.getItem('token');
-    const headers = { Authorization: `Bearer ${token}` };
+    const { token } = useAuth();
+    const toast = useToast();
 
     useEffect(() => {
-        const load = async () => {
+        const fetchStats = async () => {
             try {
-                const [v, d, t, e] = await Promise.all([
-                    axios.get('http://localhost:5000/api/vehicles', { headers }),
-                    axios.get('http://localhost:5000/api/drivers', { headers }),
-                    axios.get('http://localhost:5000/api/trips', { headers }),
-                    axios.get('http://localhost:5000/api/expenses', { headers }),
+                const [vRes, tRes, dRes, eRes] = await Promise.all([
+                    api.get('/vehicles'),
+                    api.get('/trips'),
+                    api.get('/drivers'),
+                    api.get('/expenses'),
                 ]);
-                setVehicles(v.data);
-                setTrips(t.data);
-                setExpenses(e.data);
+
+                const vehiclesData = vRes.data;
+                const tripsData = tRes.data;
+                const driversData = dRes.data;
+                const expensesData = eRes.data;
+
+                setVehicles(vehiclesData);
+                setTrips(tripsData);
+                setExpenses(expensesData);
+
+                const fuelCost = expensesData.filter(x => x.type === 'Fuel').reduce((a, c) => a + c.amount, 0);
+                const maintCost = expensesData.filter(x => x.type === 'Maintenance').reduce((a, c) => a + c.amount, 0);
+                const totalExpenses = expensesData.reduce((a, c) => a + c.amount, 0);
+                const revenue = expensesData.filter(x => x.type === 'Revenue').reduce((a, c) => a + c.amount, 0);
+
+
                 setStats({
-                    totalVehicles: v.data.length,
-                    activeVehicles: v.data.filter(x => x.status === 'Available' || x.status === 'On Trip').length,
-                    inMaintenance: v.data.filter(x => x.status === 'In Shop').length,
-                    outOfService: v.data.filter(x => x.status === 'Out of Service').length,
-                    activeDrivers: d.data.filter(dr => dr.status === 'On Duty').length,
-                    totalDrivers: d.data.length,
-                    totalTrips: t.data.length,
-                    pendingTrips: t.data.filter(tr => tr.status === 'Draft' || tr.status === 'Dispatched').length,
-                    completedTrips: t.data.filter(tr => tr.status === 'Completed').length,
                     totalExpenses: e.data.reduce((a, c) => a + c.amount, 0),
                     fuelCost: e.data.filter(x => x.type === 'Fuel').reduce((a, c) => a + c.amount, 0),
                     maintCost: e.data.filter(x => x.type === 'Maintenance').reduce((a, c) => a + c.amount, 0),
