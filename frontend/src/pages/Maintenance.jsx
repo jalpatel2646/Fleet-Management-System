@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api/config';
+import { useAuth } from '../context/AuthContext';
 import {
     Wrench, Plus, Trash2, X, Calendar, DollarSign, AlertTriangle,
     CheckCircle, Clock, TrendingUp, Activity, Shield, Zap,
